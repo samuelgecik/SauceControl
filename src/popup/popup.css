@@ -138,3 +138,39 @@ main {
     text-align: right;
     border-top: 2px solid var(--color-coffee);
 }
+
+/* Settings Icon Button */
+.icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 0.1s;
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
+}
+
+.icon-btn img {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+/* Helper classes for button icons if needed later */
+.btn-icon,
+.btn-icon-small {
+    vertical-align: middle;
+    margin-right: 5px;
+}
+
+.btn-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.btn-icon-small {
+    width: 16px;
+    height: 16px;
+}
