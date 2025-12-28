@@ -1,0 +1,46 @@
+:root {
+  --sc-color-red: #E02130;
+  --sc-color-cream: #F9F4E0;
+  --sc-color-coffee: #2C2C2C;
+  --sc-font-display: 'Lobster', cursive;
+}
+
+#sauce-control-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(249, 244, 224, 0.98);
+  /* Guest Check Cream */
+  z-index: 2147483647;
+  /* Max Z-Index */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-family: 'Quicksand', sans-serif;
+  color: var(--sc-color-coffee);
+}
+
+.sauce-control-image {
+  max-width: 300px;
+  height: auto;
+  margin-bottom: 2rem;
+  box-shadow: 4px 4px 0px var(--sc-color-coffee);
+  border: 3px solid var(--sc-color-coffee);
+  border-radius: 10px;
+}
+
+.sauce-control-title {
+  font-family: var(--sc-font-display);
+  font-size: 4rem;
+  color: var(--sc-color-red);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.sauce-control-message {
+  font-size: 1.5rem;
+  text-align: center;
+}

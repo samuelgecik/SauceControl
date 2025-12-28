@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SauceControl</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="diner-header">
+            <h1 class="logo">SauceControl</h1>
+        </header>
+
+        <main>
+            <!-- Timer Section -->
+            <section id="timer-view" class="timer-section">
+                <div class="bottle-timer">
+                    <div class="liquid" id="timer-liquid"></div>
+                    <span class="time-display" id="time-display">25:00</span>
+                </div>
+                <div class="controls">
+                    <button id="btn-start" class="btn btn-primary">
+                        <img src="../../assets/icons/icon_service_bell.png" class="btn-icon" alt="" /> Order Up!
+                    </button>
+                    <button id="btn-stop" class="btn btn-secondary hidden">86 It!</button>
+                </div>
+            </section>
+
+            <!-- Connection/Ration Section -->
+            <section class="ration-section">
+                <h2>Today's Specials</h2>
+                <ul id="ration-list" class="receipt-list">
+                    <!-- Items will be injected here -->
+                    <li class="empty-state">No side orders yet.</li>
+                </ul>
+                <button id="btn-add-site" class="btn btn-small">
+                    <img src="../../assets/icons/icon_add_fries.png" class="btn-icon-small" alt="" /> Add Side
+                </button>
+            </section>
+        </main>
+
+        <footer class="jukebox-footer">
+            <button id="btn-settings" class="icon-btn" aria-label="Settings">
+                <img src="../../assets/icons/icon_settings_jukebox.png" alt="Settings" />
+            </button>
+        </footer>
+    </div>
+    <script type="module" src="popup.js"></script>
+</body>
+
+</html>
