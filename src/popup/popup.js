@@ -1,4 +1,5 @@
-import { getStorage, setStorage, STORAGE_KEYS, getBlockedSite } from '../utils/storage.js';
+import { getStorage, setStorage, getBlockedSite } from '../utils/storage.js';
+import { STORAGE_KEYS } from '../utils/constants.js';
 
 console.log('Popup script loaded');
 // Ensure DOM is fully loaded
