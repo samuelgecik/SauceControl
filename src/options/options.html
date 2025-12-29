@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SauceControl Settings</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+
+<body>
+    <div class="options-container">
+        <header class="diner-header">
+            <h1 class="logo">Kitchen Settings</h1>
+        </header>
+
+        <main>
+            <section class="settings-group">
+                <h2>Shift Configuration</h2>
+
+                <div class="setting-item">
+                    <label for="reset-hour">Daily Reset Hour (0-23)</label>
+                    <input type="number" id="reset-hour" min="0" max="23" class="diner-input">
+                    <p class="description">When should the daily specials (rations) be fresh?</p>
+                </div>
+
+                <div class="setting-item">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="sound-enabled">
+                        <span class="checkmark"></span>
+                        Enable Kitchen Sounds
+                    </label>
+                </div>
+            </section>
+        </main>
+
+        <div id="status" class="status-message"></div>
+
+        <footer class="jukebox-footer">
+            <button id="btn-save" class="btn btn-primary">Save Changes</button>
+        </footer>
+    </div>
+    <script type="module" src="options.js"></script>
+</body>
+
+</html>

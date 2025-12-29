@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "SauceControl",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Diner-themed productivity timer and website rationer.",
     "permissions": [
         "storage",
@@ -38,6 +38,10 @@
             "48": "assets/icons/toolbar_icon.png",
             "128": "assets/icons/toolbar_icon.png"
         }
+    },
+    "options_ui": {
+        "page": "src/options/options.html",
+        "open_in_tab": false
     },
     "icons": {
         "16": "assets/icons/toolbar_icon.png",
