@@ -132,6 +132,29 @@ main {
     border-bottom: 1px dotted #ccc;
 }
 
+/* Add Site Controls */
+.add-site-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.diner-input-small {
+    width: 60px;
+    padding: 8px;
+    border: 2px solid var(--color-coffee);
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    background: white;
+}
+
+.btn-small {
+    padding: 8px 15px;
+    font-size: 1rem;
+}
+
 .jukebox-footer {
     background-color: var(--color-chrome);
     padding: 10px;

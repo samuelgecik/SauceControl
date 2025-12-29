@@ -121,8 +121,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (currentSites[domain]) return;
 
                 // Add new site
+                const limitInput = document.getElementById('site-limit');
+                const dailyLimit = parseInt(limitInput.value, 10);
+
+                if (isNaN(dailyLimit) || dailyLimit <= 0) {
+                    alert("Please enter a valid time limit.");
+                    return;
+                }
+
                 currentSites[domain] = {
-                    daily_limit_minutes: 30, // Default
+                    daily_limit_minutes: dailyLimit,
                     minutes_used_today: 0,
                     last_reset_date: new Date().toDateString(),
                     created_at: Date.now()

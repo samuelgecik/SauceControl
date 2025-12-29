@@ -1,161 +1,204 @@
+/* SauceControl Options CSS */
+
 :root {
-    --ketchup-red: #E02130;
-    --mustard-yellow: #F4B324;
-    --milkshake-teal: #6CD4C4;
-    --guest-check-cream: #F9F4E0;
-    --diner-chrome: #E8E8E8;
-    --coffee-black: #2C2C2C;
+    --color-ketchup: #E02130;
+    --color-mustard: #F4B324;
+    --color-teal: #6CD4C4;
+    --color-cream: #F9F4E0;
+    --color-chrome: #E8E8E8;
+    --color-coffee: #2C2C2C;
     --font-display: 'Lobster', cursive;
     --font-body: 'Quicksand', sans-serif;
+    --font-receipt: 'Courier Prime', monospace;
 }
 
 body {
-    background-color: var(--guest-check-cream);
-    color: var(--coffee-black);
-    font-family: var(--font-body);
+    width: 100%;
     margin: 0;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
+    padding: 0;
+    background-color: var(--color-cream);
+    background-image: url('../../assets/images/bg_guest_check.png');
+    background-size: cover;
+    background-repeat: no-repeat;
+    font-family: var(--font-body);
+    color: var(--color-coffee);
+    min-height: 100vh;
 }
 
 .options-container {
-    width: 100%;
-    max-width: 500px;
-    background: #fff;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-top: 5px solid var(--ketchup-red);
+    max-width: 600px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.9);
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
 }
 
 .diner-header {
+    background-color: var(--color-ketchup);
+    padding: 20px;
     text-align: center;
-    margin-bottom: 2rem;
-    border-bottom: 2px dashed var(--diner-chrome);
-    padding-bottom: 1rem;
+    border-bottom: 4px solid var(--color-coffee);
 }
 
 .logo {
     font-family: var(--font-display);
-    color: var(--ketchup-red);
-    font-size: 2.5rem;
+    color: white;
     margin: 0;
+    font-size: 2.5rem;
+    text-shadow: 3px 3px 0px var(--color-coffee);
 }
 
-h2 {
+main {
+    flex: 1;
+    padding: 30px;
+}
+
+.settings-group {
+    background: white;
+    border: 2px solid var(--color-coffee);
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 4px 4px 0px var(--color-coffee);
+}
+
+.settings-group h2 {
     font-family: var(--font-display);
-    color: var(--coffee-black);
-    margin-bottom: 1.5rem;
+    color: var(--color-ketchup);
+    border-bottom: 2px dashed var(--color-coffee);
+    padding-bottom: 10px;
+    margin-top: 0;
 }
 
 .setting-item {
-    margin-bottom: 1.5rem;
+    margin-bottom: 20px;
 }
 
-label {
+.setting-item label {
     display: block;
     font-weight: bold;
-    margin-bottom: 0.5rem;
-}
-
-.description {
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 0.25rem;
+    margin-bottom: 5px;
 }
 
 .diner-input {
     width: 100%;
     padding: 10px;
-    border: 2px solid var(--diner-chrome);
-    border-radius: 4px;
+    border: 2px solid var(--color-coffee);
     font-family: var(--font-body);
     font-size: 1rem;
+    box-sizing: border-box;
 }
 
-.diner-input:focus {
-    border-color: var(--milkshake-teal);
-    outline: none;
+.description {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 5px;
+    font-style: italic;
 }
 
-/* Checkbox Styling */
+/* Checkbox */
 .checkbox-container {
     display: flex;
     align-items: center;
     cursor: pointer;
-    user-select: none;
+    font-size: 1.1rem;
 }
 
 .checkbox-container input {
-    position: absolute;
-    opacity: 0;
-    cursor: pointer;
-    height: 0;
-    width: 0;
-}
-
-.checkmark {
-    height: 20px;
-    width: 20px;
-    background-color: var(--diner-chrome);
-    border-radius: 4px;
-    margin-right: 10px;
-    position: relative;
-}
-
-.checkbox-container:hover input~.checkmark {
-    background-color: #ccc;
-}
-
-.checkbox-container input:checked~.checkmark {
-    background-color: var(--ketchup-red);
-}
-
-.checkmark:after {
-    content: "";
-    position: absolute;
     display: none;
 }
 
-.checkbox-container input:checked~.checkmark:after {
-    display: block;
+.checkmark {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--color-coffee);
+    margin-right: 10px;
+    display: inline-block;
+    position: relative;
 }
 
-.checkbox-container .checkmark:after {
-    left: 7px;
-    top: 3px;
-    width: 5px;
-    height: 10px;
-    border: solid white;
-    border-width: 0 3px 3px 0;
-    transform: rotate(45deg);
+.checkbox-container input:checked+.checkmark::after {
+    content: '✓';
+    font-size: 1.2rem;
+    color: var(--color-ketchup);
+    position: absolute;
+    top: -5px;
+    left: 2px;
+    font-weight: bold;
+}
+
+/* Footer */
+.jukebox-footer {
+    padding: 20px;
+    background: var(--color-chrome);
+    border-top: 4px solid var(--color-coffee);
+    text-align: right;
 }
 
 .btn {
-    padding: 12px 24px;
     border: none;
-    border-radius: 4px;
-    font-weight: bold;
+    border-radius: 5px;
+    padding: 12px 25px;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
     cursor: pointer;
-    font-family: var(--font-body);
-    font-size: 1rem;
-    transition: transform 0.1s;
+    box-shadow: 3px 3px 0px var(--color-coffee);
+    transition: transform 0.1s, box-shadow 0.1s;
 }
 
 .btn:active {
-    transform: scale(0.98);
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px var(--color-coffee);
 }
 
 .btn-primary {
-    background-color: var(--ketchup-red);
+    background-color: var(--color-ketchup);
     color: white;
 }
 
 .status-message {
     text-align: center;
-    height: 1.5em;
-    color: var(--milkshake-teal);
+    font-family: var(--font-display);
+    color: var(--color-teal);
+    font-size: 1.2rem;
+    height: 1.5rem;
+    margin: 10px 0;
+}
+
+/* Ration List Edit */
+.ration-list-edit {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ration-list-edit li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px dotted #ccc;
+}
+
+.ration-list-edit li:last-child {
+    border-bottom: none;
+}
+
+.domain-name {
     font-weight: bold;
-    margin: 1rem 0;
+    flex: 1;
+}
+
+.limit-input-container {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.diner-input-small {
+    width: 70px;
+    padding: 5px;
+    border: 2px solid var(--color-coffee);
+    text-align: center;
 }
