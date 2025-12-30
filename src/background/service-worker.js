@@ -63,9 +63,27 @@ async function handleTimerComplete() {
     // Reset state
     await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
 
-    // Play sound or notify
+    // Play sound
     console.log('Timer Complete! Ding!');
-    // Todo: Notification
+    await playAudio('assets/sounds/ding.mp3');
+}
+
+async function createOffscreen() {
+    if (await chrome.offscreen.hasDocument()) return;
+    await chrome.offscreen.createDocument({
+        url: 'src/offscreen/offscreen.html',
+        reasons: ['AUDIO_PLAYBACK'],
+        justification: 'Play timer notification sound',
+    });
+}
+
+async function playAudio(file) {
+    try {
+        await createOffscreen();
+        chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file });
+    } catch (e) {
+        console.error('Failed to play audio:', e);
+    }
 }
 
 /**

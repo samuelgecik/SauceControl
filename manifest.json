@@ -1,14 +1,15 @@
 {
     "manifest_version": 3,
     "name": "SauceControl",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "description": "Diner-themed productivity timer and website rationer.",
     "permissions": [
         "storage",
         "tabs",
         "activeTab",
         "scripting",
-        "alarms"
+        "alarms",
+        "offscreen"
     ],
     "host_permissions": [
         "<all_urls>"
