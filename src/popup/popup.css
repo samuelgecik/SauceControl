@@ -140,6 +140,10 @@ main {
     margin-top: 10px;
 }
 
+.add-site-controls #btn-settings {
+    margin-left: auto;
+}
+
 .diner-input-small {
     width: 60px;
     padding: 8px;
@@ -153,13 +157,6 @@ main {
 .btn-small {
     padding: 8px 15px;
     font-size: 1rem;
-}
-
-.jukebox-footer {
-    background-color: var(--color-chrome);
-    padding: 10px;
-    text-align: right;
-    border-top: 2px solid var(--color-coffee);
 }
 
 /* Settings Icon Button */
