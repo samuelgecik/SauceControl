@@ -175,7 +175,7 @@ async function updateActiveTabUsage() {
             const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
             if (timer.status === 'focus') {
                 console.log(`Blocking ${domain} (Focus Mode Active)`);
-                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE' });
+                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE', reason: 'FOCUS_MODE' });
                 return; // Exit early, no tracking needed if blocked
             }
 
@@ -195,7 +195,7 @@ async function updateActiveTabUsage() {
             const remaining = limit - newUsage;
 
             if (remaining <= 0) {
-                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE' });
+                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE', reason: 'DAILY_LIMIT' });
             } else if (remaining === 1) {
                 chrome.tabs.sendMessage(activeTab.id, { action: 'WARNING', text: 'Last bite! 1 minute left.' });
             }
