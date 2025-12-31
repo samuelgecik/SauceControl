@@ -21,7 +21,7 @@ function injectOverlay(reason) {
 
     const overlay = document.createElement('div');
     overlay.id = `${CSS_PREFIX}-overlay`;
-    const imageUrl = chrome.runtime.getURL('assets/images/closed.png');
+    const imageUrl = chrome.runtime.getURL('assets/images/closed.jpg');
 
     let title = "Sorry, We're Closed!";
     let message = "Kitchen is closed. You've used your ration for today.";

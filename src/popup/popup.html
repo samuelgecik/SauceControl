@@ -23,7 +23,7 @@
                 </div>
                 <div class="controls">
                     <button id="btn-start" class="btn btn-primary">
-                        <img src="../../assets/icons/icon_service_bell.png" class="btn-icon" alt="" /> Order Up!
+                        <img src="../../assets/icons/icon_service_bell.svg" class="btn-icon" alt="" /> Order Up!
                     </button>
                     <button id="btn-stop" class="btn btn-secondary hidden">86 It!</button>
                 </div>
@@ -36,18 +36,20 @@
                     <!-- Items will be injected here -->
                     <li class="empty-state">No side orders yet.</li>
                 </ul>
-                <div class="add-site-controls">
-                    <input type="number" id="site-limit" class="diner-input-small" value="30" min="1" max="1440"
-                        title="Daily limit (minutes)">
-                    <button id="btn-add-site" class="btn btn-small">
-                        <img src="../../assets/icons/icon_add_fries.png" class="btn-icon-small" alt="" /> Add Side
-                    </button>
-                    <button id="btn-settings" class="icon-btn" aria-label="Settings">
-                <img src="../../assets/icons/icon_settings_jukebox.png" alt="Settings" />
-                </button>
-                </div>
             </section>
+
         </main>
+
+        <footer class="add-site-controls">
+            <input type="number" id="site-limit" class="diner-input-small" value="30" min="1" max="1440"
+                title="Daily limit (minutes)">
+            <button id="btn-add-site" class="btn btn-small">
+                <img src="../../assets/icons/icon_add_fries.svg" class="btn-icon-small" alt="" /> Add Side
+            </button>
+            <button id="btn-settings" class="icon-btn" aria-label="Settings">
+                <img src="../../assets/icons/icon_settings_jukebox.svg" alt="Settings" />
+            </button>
+        </footer>
     </div>
     <script type="module" src="popup.js"></script>
 </body>
