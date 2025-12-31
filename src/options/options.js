@@ -10,6 +10,10 @@ async function restoreOptions() {
 
     document.getElementById('reset-hour').value = settings.daily_reset_hour !== undefined ? settings.daily_reset_hour : 0;
     document.getElementById('sound-enabled').checked = settings.sound_enabled !== undefined ? settings.sound_enabled : true;
+    document.getElementById('focus-duration').value = settings.focus_duration || 25;
+    document.getElementById('short-break-duration').value = settings.short_break_duration || 5;
+    document.getElementById('long-break-duration').value = settings.long_break_duration || 15;
+    document.getElementById('auto-start-focus').checked = settings.auto_start_focus || false;
 
     // Render Ration List
     const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
@@ -38,10 +42,18 @@ async function restoreOptions() {
 async function saveOptions() {
     const dailyResetHour = parseInt(document.getElementById('reset-hour').value, 10);
     const soundEnabled = document.getElementById('sound-enabled').checked;
+    const focusDuration = parseInt(document.getElementById('focus-duration').value, 10);
+    const shortBreakDuration = parseInt(document.getElementById('short-break-duration').value, 10);
+    const longBreakDuration = parseInt(document.getElementById('long-break-duration').value, 10);
+    const autoStartFocus = document.getElementById('auto-start-focus').checked;
 
     const newSettings = {
         daily_reset_hour: dailyResetHour,
-        sound_enabled: soundEnabled
+        sound_enabled: soundEnabled,
+        focus_duration: focusDuration,
+        short_break_duration: shortBreakDuration,
+        long_break_duration: longBreakDuration,
+        auto_start_focus: autoStartFocus
     };
 
     await setStorage(STORAGE_KEYS.USER_SETTINGS, newSettings);

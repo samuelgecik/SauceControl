@@ -40,17 +40,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function startTimer(minutes, type) {
-    const durationMs = minutes * 60 * 1000;
+    let duration = minutes;
+
+    // specific lookup if not provided
+    if (!duration) {
+        const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+        if (type === 'focus') duration = settings.focus_duration || 25;
+        else if (type === 'short_break') duration = settings.short_break_duration || 5;
+        else if (type === 'long_break') duration = settings.long_break_duration || 15;
+        else duration = 25;
+    }
+
+    const durationMs = duration * 60 * 1000;
     const endTimestamp = Date.now() + durationMs;
+
+    // Get current state to preserve pomodoros_completed if not resetting
+    const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE) || DEFAULTS.TIMER_STATE;
+    const pomodorosCompleted = type === 'focus' ? currentState.pomodoros_completed : currentState.pomodoros_completed;
 
     await setStorage(STORAGE_KEYS.TIMER_STATE, {
         status: type || 'focus',
         end_timestamp: endTimestamp,
-        duration_minutes: minutes
+        duration_minutes: duration,
+        pomodoros_completed: pomodorosCompleted
     });
 
     chrome.alarms.create('timer_end', { when: endTimestamp });
-    console.log(`Timer started: ${type} for ${minutes}m`);
+    console.log(`Timer started: ${type} for ${duration}m`);
 }
 
 async function stopTimer() {
@@ -60,12 +76,55 @@ async function stopTimer() {
 }
 
 async function handleTimerComplete() {
-    // Reset state
-    await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
+    const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
+    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
 
     // Play sound
     console.log('Timer Complete! Ding!');
     await playAudio('assets/sounds/ding.mp3');
+
+    if (currentState.status === 'focus') {
+        const newPomodoros = (currentState.pomodoros_completed || 0) + 1;
+
+        let nextType = 'short_break';
+        if (newPomodoros % 4 === 0) {
+            nextType = 'long_break';
+        }
+
+        // Auto-start break
+        console.log(`Focus complete. Starting ${nextType}. Cycles: ${newPomodoros}`);
+
+        // Update pomodoros count first
+        await setStorage(STORAGE_KEYS.TIMER_STATE, {
+            ...currentState,
+            pomodoros_completed: newPomodoros
+        });
+
+        await startTimer(null, nextType);
+
+    } else if (currentState.status === 'short_break' || currentState.status === 'long_break') {
+        const autoStart = settings.auto_start_focus;
+
+        if (autoStart) {
+            console.log('Break complete. Auto-starting Focus.');
+            // Preserve pomodoro count
+            await setStorage(STORAGE_KEYS.TIMER_STATE, {
+                ...currentState,
+                status: 'idle' // Temporary reset to standard
+            });
+            await startTimer(null, 'focus');
+        } else {
+            // Break is over, return to idle but keep cycle count
+            console.log('Break complete. Waiting for user to start focus.');
+            await setStorage(STORAGE_KEYS.TIMER_STATE, {
+                ...DEFAULTS.TIMER_STATE,
+                pomodoros_completed: currentState.pomodoros_completed // Preserve progress
+            });
+        }
+    } else {
+        // Should not happen, but reset just in case
+        await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
+    }
 }
 
 async function createOffscreen() {

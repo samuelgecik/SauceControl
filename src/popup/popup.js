@@ -14,8 +14,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Timer Logic ---
     let timerInterval;
 
+    // Cached settings
+    let currentSettings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+
     function updateTimerUI(state) {
-        if (state.status === 'focus' && state.end_timestamp) {
+        const isRunning = ['focus', 'short_break', 'long_break'].includes(state.status);
+
+        if (isRunning && state.end_timestamp) {
             const now = Date.now();
             const remaining = Math.max(0, state.end_timestamp - now);
             const minutes = Math.floor(remaining / 60000);
@@ -35,9 +40,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clearInterval(timerInterval);
             }
         } else {
-            timeDisplay.textContent = `${state.duration_minutes || 25}:00`;
+            // Idle State
+            // Show configured focus duration
+            const displayMinutes = currentSettings.focus_duration || 25;
+            timeDisplay.textContent = `${displayMinutes}:00`;
             if (timerLiquid) timerLiquid.style.height = '100%';
             btnStart.classList.remove('hidden');
+
+            // Update button text contextually? optional
             btnStop.classList.add('hidden');
         }
     }
@@ -46,25 +56,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     const timerState = await getStorage(STORAGE_KEYS.TIMER_STATE);
     updateTimerUI(timerState);
 
-    if (timerState.status === 'focus') {
+    if (['focus', 'short_break', 'long_break'].includes(timerState.status)) {
         timerInterval = setInterval(async () => {
-            const now = Date.now();
             // We use the end_timestamp from the initial read or updated state
             // But to be robust against BG updates, we rely on the state logic
             const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
-            if (currentState.status !== 'focus') clearInterval(timerInterval);
+            if (!['focus', 'short_break', 'long_break'].includes(currentState.status)) clearInterval(timerInterval);
             updateTimerUI(currentState);
         }, 1000);
     }
 
     // Storage Listener for background updates
     chrome.storage.onChanged.addListener((changes) => {
+        if (changes[STORAGE_KEYS.USER_SETTINGS]) {
+            currentSettings = changes[STORAGE_KEYS.USER_SETTINGS].newValue;
+            // Refresh UI if idle to show new default
+            getStorage(STORAGE_KEYS.TIMER_STATE).then(state => {
+                if (!['focus', 'short_break', 'long_break'].includes(state.status)) {
+                    updateTimerUI(state);
+                }
+            });
+        }
         if (changes[STORAGE_KEYS.TIMER_STATE]) {
             const newState = changes[STORAGE_KEYS.TIMER_STATE].newValue;
             clearInterval(timerInterval); // Reset loop
             updateTimerUI(newState);
 
-            if (newState.status === 'focus') {
+            if (['focus', 'short_break', 'long_break'].includes(newState.status)) {
                 timerInterval = setInterval(() => updateTimerUI(newState), 1000);
             }
         }
@@ -74,8 +92,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Buttons
-    btnStart.addEventListener('click', () => {
-        chrome.runtime.sendMessage({ action: 'START_TIMER', duration: 25, type: 'focus' });
+    btnStart.addEventListener('click', async () => {
+        // Always start a focus session from idle
+        // Check settings for duration
+        const duration = currentSettings.focus_duration || 25;
+        chrome.runtime.sendMessage({ action: 'START_TIMER', duration: duration, type: 'focus' });
     });
 
     btnStop.addEventListener('click', () => {

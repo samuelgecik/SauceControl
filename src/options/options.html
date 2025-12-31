@@ -31,17 +31,38 @@
                         Enable Kitchen Sounds
                     </label>
                 </div>
-            </section>
+                <section class="settings-group">
+                    <h2>Timer Configuration</h2>
+                    <div class="setting-item">
+                        <label for="focus-duration">Focus Duration (min)</label>
+                        <input type="number" id="focus-duration" min="1" class="diner-input">
+                    </div>
+                    <div class="setting-item">
+                        <label for="short-break-duration">Short Break (min)</label>
+                        <input type="number" id="short-break-duration" min="1" class="diner-input">
+                    </div>
+                    <div class="setting-item">
+                        <label for="long-break-duration">Long Break (min)</label>
+                        <input type="number" id="long-break-duration" min="1" class="diner-input">
+                    </div>
+                    <div class="setting-item">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="auto-start-focus">
+                            <span class="checkmark"></span>
+                            Auto-start Work Timer
+                        </label>
+                    </div>
+                </section>
 
-            <section class="settings-group">
-                <h2>Menu Rationing</h2>
-                <div class="setting-item">
-                    <p class="description">Adjust the daily allowance for each site.</p>
-                    <ul id="ration-list-edit" class="ration-list-edit">
-                        <!-- Items injected by JS -->
-                    </ul>
-                </div>
-            </section>
+                <section class="settings-group">
+                    <h2>Menu Rationing</h2>
+                    <div class="setting-item">
+                        <p class="description">Adjust the daily allowance for each site.</p>
+                        <ul id="ration-list-edit" class="ration-list-edit">
+                            <!-- Items injected by JS -->
+                        </ul>
+                    </div>
+                </section>
         </main>
 
         <div id="status" class="status-message"></div>
