@@ -39,6 +39,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 });
 
+// Immediate usage check on tab updates
+chrome.tabs.onActivated.addListener(() => {
+    updateActiveTabUsage();
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' || changeInfo.url) {
+        updateActiveTabUsage();
+    }
+});
+
 async function startTimer(minutes, type) {
     let duration = minutes;
 
