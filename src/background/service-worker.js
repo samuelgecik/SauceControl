@@ -36,6 +36,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         startTimer(message.duration, message.type);
     } else if (message.action === 'STOP_TIMER') {
         stopTimer();
+    } else if (message.action === 'PLAY_SOUND') {
+        playAudio(message.file);
     }
 });
 
@@ -78,6 +80,13 @@ async function startTimer(minutes, type) {
 
     chrome.alarms.create('timer_end', { when: endTimestamp });
     console.log(`Timer started: ${type} for ${duration}m`);
+
+    // Sound effects
+    if (type === 'focus') {
+        await playAudio('assets/sounds/igniter.ogg');
+    } else if (type === 'short_break' || type === 'long_break') {
+        await playAudio('assets/sounds/coffee_pour.ogg');
+    }
 }
 
 async function stopTimer() {
@@ -92,7 +101,7 @@ async function handleTimerComplete() {
 
     // Play sound
     console.log('Timer Complete! Ding!');
-    await playAudio('assets/sounds/ding.mp3');
+    await playAudio('assets/sounds/ding.ogg');
 
     if (currentState.status === 'focus') {
         const newPomodoros = (currentState.pomodoros_completed || 0) + 1;
@@ -149,6 +158,9 @@ async function createOffscreen() {
 
 async function playAudio(file) {
     try {
+        const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+        if (settings.sound_enabled === false) return;
+
         await createOffscreen();
         chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file });
     } catch (e) {
@@ -196,8 +208,10 @@ async function updateActiveTabUsage() {
 
             if (remaining <= 0) {
                 chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE', reason: 'DAILY_LIMIT' });
+                await playAudio('assets/sounds/metal_grill_door.ogg');
             } else if (remaining === 1) {
                 chrome.tabs.sendMessage(activeTab.id, { action: 'WARNING', text: 'Last bite! 1 minute left.' });
+                await playAudio('assets/sounds/boiling_lid.ogg');
             }
         }
     } catch (e) {

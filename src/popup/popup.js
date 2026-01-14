@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     btnStop.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file: 'assets/sounds/click.ogg' });
         chrome.runtime.sendMessage({ action: 'STOP_TIMER' });
     });
 
@@ -158,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
 
                 await setStorage(STORAGE_KEYS.BLOCKED_SITES, currentSites);
+                chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file: 'assets/sounds/cash_register.ogg' });
             } catch (e) {
                 console.error("Invalid URL");
             }
@@ -168,6 +170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnSettings = document.getElementById('btn-settings');
     btnSettings.addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file: 'assets/sounds/click.ogg' });
         // Simple toggle for now, or just log
         if (chrome.runtime.openOptionsPage) {
             chrome.runtime.openOptionsPage();
