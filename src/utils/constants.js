@@ -1,21 +1,6 @@
 /**
- * SauceControl Constants & Design Tokens
+ * SauceControl Constants
  */
-
-export const COLORS = {
-    KETCHUP_RED: '#E02130',
-    MUSTARD_YELLOW: '#F4B324',
-    MILKSHAKE_TEAL: '#6CD4C4',
-    GUEST_CHECK_CREAM: '#F9F4E0',
-    DINER_CHROME: '#E8E8E8',
-    COFFEE_BLACK: '#2C2C2C',
-};
-
-export const FONTS = {
-    DISPLAY: "'Lobster', cursive",
-    BODY: "'Quicksand', sans-serif",
-    RECEIPT: "'Courier Prime', monospace",
-};
 
 export const STORAGE_KEYS = {
     USER_SETTINGS: 'user_settings',
@@ -37,5 +22,6 @@ export const DEFAULTS = {
         end_timestamp: null,
         duration_minutes: 25,
         pomodoros_completed: 0,
+        pomodoro_day: null,
     },
 };

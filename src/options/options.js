@@ -1,12 +1,19 @@
-import { getStorage, setStorage } from '../utils/storage.js';
-import { STORAGE_KEYS, DEFAULTS } from '../utils/constants.js';
+import { getStorage, setStorage, updateBlockedSites } from '../utils/storage.js';
+import { STORAGE_KEYS } from '../utils/constants.js';
 
 document.addEventListener('DOMContentLoaded', restoreOptions);
 document.getElementById('btn-save').addEventListener('click', saveOptions);
 
+const listContainer = document.getElementById('ration-list-edit');
+listContainer.addEventListener('click', removeSite);
+
+function showEmptyList() {
+    listContainer.innerHTML = '<li>No sites added yet.</li>';
+}
+
 async function restoreOptions() {
     console.log("Restoring options...");
-    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
 
     document.getElementById('reset-hour').value = settings.daily_reset_hour !== undefined ? settings.daily_reset_hour : 0;
     document.getElementById('sound-enabled').checked = settings.sound_enabled !== undefined ? settings.sound_enabled : true;
@@ -17,12 +24,11 @@ async function restoreOptions() {
 
     // Render Ration List
     const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
-    const listContainer = document.getElementById('ration-list-edit');
     listContainer.innerHTML = '';
 
     const domains = Object.keys(sites || {});
     if (domains.length === 0) {
-        listContainer.innerHTML = '<li>No sites added yet.</li>';
+        showEmptyList();
     } else {
         domains.forEach(domain => {
             const site = sites[domain];
@@ -30,8 +36,9 @@ async function restoreOptions() {
             li.innerHTML = `
                 <span class="domain-name">${domain}</span>
                 <div class="limit-input-container">
-                    <input type="number" class="diner-input-small site-limit-input" data-domain="${domain}" value="${site.daily_limit_minutes}" min="1">
+                    <input type="number" class="diner-input-small site-limit-input" data-domain="${domain}" value="${site.daily_limit_minutes}" min="1" max="1440" required>
                     <span>min</span>
+                    <button type="button" class="btn-remove" data-domain="${domain}" aria-label="Remove ${domain}">Remove</button>
                 </div>
             `;
             listContainer.appendChild(li);
@@ -39,7 +46,25 @@ async function restoreOptions() {
     }
 }
 
+async function removeSite(event) {
+    const button = event.target.closest('.btn-remove');
+    if (!button) return;
+
+    await updateBlockedSites((sites) => {
+        delete sites[button.dataset.domain];
+    });
+
+    button.closest('li').remove();
+    if (listContainer.children.length === 0) {
+        showEmptyList();
+    }
+}
+
 async function saveOptions() {
+    // Rejects blank, out-of-range and fractional values using the limits declared on each input
+    const inputs = [...document.querySelectorAll('input[type="number"]')];
+    if (!inputs.every((input) => input.reportValidity())) return;
+
     const dailyResetHour = parseInt(document.getElementById('reset-hour').value, 10);
     const soundEnabled = document.getElementById('sound-enabled').checked;
     const focusDuration = parseInt(document.getElementById('focus-duration').value, 10);
@@ -59,18 +84,16 @@ async function saveOptions() {
     await setStorage(STORAGE_KEYS.USER_SETTINGS, newSettings);
 
     // Save Blocked Sites Limits
-    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
     const limitInputs = document.querySelectorAll('.site-limit-input');
 
-    limitInputs.forEach(input => {
-        const domain = input.dataset.domain;
-        const newLimit = parseInt(input.value, 10);
-        if (sites[domain] && !isNaN(newLimit) && newLimit > 0) {
-            sites[domain].daily_limit_minutes = newLimit;
-        }
+    await updateBlockedSites((sites) => {
+        limitInputs.forEach(input => {
+            const domain = input.dataset.domain;
+            if (sites[domain]) {
+                sites[domain].daily_limit_minutes = parseInt(input.value, 10);
+            }
+        });
     });
-
-    await setStorage(STORAGE_KEYS.BLOCKED_SITES, sites);
 
     const status = document.getElementById('status');
     status.textContent = 'Order updated!';

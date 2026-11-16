@@ -1,11 +1,20 @@
-import { getStorage, setStorage, getBlockedSite } from '../utils/storage.js';
-import { STORAGE_KEYS } from '../utils/constants.js';
+import { getStorage, updateBlockedSites } from '../utils/storage.js';
+import { getSiteDomain, findTrackedDomain, getBudgetDay } from '../utils/sites.js';
+import { STORAGE_KEYS, DEFAULTS } from '../utils/constants.js';
+
+const TIMER_LABELS = {
+    idle: 'Ready to Cook',
+    focus: 'Simmering',
+    short_break: 'Coffee Break',
+    long_break: 'Long Break',
+};
 
 console.log('Popup script loaded');
 // Ensure DOM is fully loaded
 document.addEventListener('DOMContentLoaded', async () => {
     const timeDisplay = document.getElementById('time-display');
     const timerLiquid = document.getElementById('timer-liquid');
+    const timerStatus = document.getElementById('timer-status');
     const btnStart = document.getElementById('btn-start');
     const btnStop = document.getElementById('btn-stop');
     const btnAddSite = document.getElementById('btn-add-site');
@@ -15,12 +24,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     let timerInterval;
 
     // Cached settings
-    let currentSettings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+    let currentSettings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
+
+    function isRunning(state) {
+        return ['focus', 'short_break', 'long_break'].includes(state.status);
+    }
 
     function updateTimerUI(state) {
-        const isRunning = ['focus', 'short_break', 'long_break'].includes(state.status);
+        timerStatus.textContent = `${TIMER_LABELS[state.status]} · ${state.pomodoros_completed || 0} done`;
+        timerLiquid.classList.toggle('on-break', state.status === 'short_break' || state.status === 'long_break');
 
-        if (isRunning && state.end_timestamp) {
+        if (isRunning(state) && state.end_timestamp) {
             const now = Date.now();
             const remaining = Math.max(0, state.end_timestamp - now);
             const minutes = Math.floor(remaining / 60000);
@@ -42,7 +56,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             // Idle State
             // Show configured focus duration
-            const displayMinutes = currentSettings.focus_duration || 25;
+            const displayMinutes = currentSettings.focus_duration > 0
+                ? currentSettings.focus_duration
+                : DEFAULTS.USER_SETTINGS.focus_duration;
             timeDisplay.textContent = `${displayMinutes}:00`;
             if (timerLiquid) timerLiquid.style.height = '100%';
             btnStart.classList.remove('hidden');
@@ -52,19 +68,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Initial Load & Listeners
-    const timerState = await getStorage(STORAGE_KEYS.TIMER_STATE);
-    updateTimerUI(timerState);
+    function showTimer(state) {
+        clearInterval(timerInterval); // Reset loop
+        updateTimerUI(state);
 
-    if (['focus', 'short_break', 'long_break'].includes(timerState.status)) {
-        timerInterval = setInterval(async () => {
-            // We use the end_timestamp from the initial read or updated state
-            // But to be robust against BG updates, we rely on the state logic
-            const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
-            if (!['focus', 'short_break', 'long_break'].includes(currentState.status)) clearInterval(timerInterval);
-            updateTimerUI(currentState);
-        }, 1000);
+        if (isRunning(state)) {
+            timerInterval = setInterval(() => updateTimerUI(state), 1000);
+        }
     }
+
+    // Initial Load & Listeners
+    showTimer(await getStorage(STORAGE_KEYS.TIMER_STATE));
 
     // Storage Listener for background updates
     chrome.storage.onChanged.addListener((changes) => {
@@ -72,19 +86,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentSettings = changes[STORAGE_KEYS.USER_SETTINGS].newValue;
             // Refresh UI if idle to show new default
             getStorage(STORAGE_KEYS.TIMER_STATE).then(state => {
-                if (!['focus', 'short_break', 'long_break'].includes(state.status)) {
+                if (!isRunning(state)) {
                     updateTimerUI(state);
                 }
             });
         }
         if (changes[STORAGE_KEYS.TIMER_STATE]) {
-            const newState = changes[STORAGE_KEYS.TIMER_STATE].newValue;
-            clearInterval(timerInterval); // Reset loop
-            updateTimerUI(newState);
-
-            if (['focus', 'short_break', 'long_break'].includes(newState.status)) {
-                timerInterval = setInterval(() => updateTimerUI(newState), 1000);
-            }
+            showTimer(changes[STORAGE_KEYS.TIMER_STATE].newValue);
         }
         if (changes[STORAGE_KEYS.BLOCKED_SITES]) {
             renderList(changes[STORAGE_KEYS.BLOCKED_SITES].newValue);
@@ -94,9 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Buttons
     btnStart.addEventListener('click', async () => {
         // Always start a focus session from idle
-        // Check settings for duration
-        const duration = currentSettings.focus_duration || 25;
-        chrome.runtime.sendMessage({ action: 'START_TIMER', duration: duration, type: 'focus' });
+        chrome.runtime.sendMessage({ action: 'START_TIMER', type: 'focus' });
     });
 
     btnStop.addEventListener('click', () => {
@@ -133,39 +139,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Add Site Logic ---
     btnAddSite.addEventListener('click', async () => {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab && tab.url && !tab.url.startsWith('chrome://')) {
-            try {
-                const url = new URL(tab.url);
-                const domain = url.hostname.replace('www.', '');
+        const domain = getSiteDomain(tab?.url);
 
-                // Check if already exists
-                const currentSites = await getStorage(STORAGE_KEYS.BLOCKED_SITES) || {};
-                if (currentSites[domain]) return;
-
-                // Add new site
-                const limitInput = document.getElementById('site-limit');
-                const dailyLimit = parseInt(limitInput.value, 10);
-
-                if (isNaN(dailyLimit) || dailyLimit <= 0) {
-                    alert("Please enter a valid time limit.");
-                    return;
-                }
-
-                currentSites[domain] = {
-                    daily_limit_minutes: dailyLimit,
-                    minutes_used_today: 0,
-                    last_reset_date: new Date().toDateString(),
-                    created_at: Date.now()
-                };
-
-                await setStorage(STORAGE_KEYS.BLOCKED_SITES, currentSites);
-                chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file: 'assets/sounds/cash_register.ogg' });
-            } catch (e) {
-                console.error("Invalid URL");
-            }
-        } else {
+        if (!domain) {
             alert("Cannot add this page.");
+            return;
         }
+
+        const limitInput = document.getElementById('site-limit');
+        if (!limitInput.reportValidity()) return;
+
+        let existingDomain = null;
+        await updateBlockedSites((currentSites) => {
+            // Check if already covered
+            existingDomain = findTrackedDomain(domain, currentSites);
+            if (existingDomain) return false;
+
+            // Add new site
+            currentSites[domain] = {
+                daily_limit_minutes: parseInt(limitInput.value, 10),
+                minutes_used_today: 0,
+                last_reset_date: getBudgetDay(currentSettings.daily_reset_hour),
+                created_at: Date.now()
+            };
+        });
+
+        if (existingDomain) {
+            alert(`${existingDomain} is already on the menu.`);
+            return;
+        }
+
+        chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file: 'assets/sounds/cash_register.ogg' });
     });
 
     const btnSettings = document.getElementById('btn-settings');

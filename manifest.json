@@ -6,10 +6,10 @@
     "permissions": [
         "storage",
         "tabs",
-        "activeTab",
         "scripting",
         "alarms",
-        "offscreen"
+        "offscreen",
+        "idle"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -53,7 +53,8 @@
         {
             "resources": [
                 "assets/images/closed.jpg",
-                "assets/fonts/*"
+                "assets/fonts/Lobster/*",
+                "assets/fonts/Quicksand/*"
             ],
             "matches": [
                 "<all_urls>"

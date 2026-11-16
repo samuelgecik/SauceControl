@@ -1,8 +1,21 @@
+/* Prefixed so these faces can't replace a family of the same name on the host page */
+@font-face {
+  font-family: 'SauceControl Lobster';
+  src: url('chrome-extension://__MSG_@@extension_id__/assets/fonts/Lobster/Lobster-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'SauceControl Quicksand';
+  src: url('chrome-extension://__MSG_@@extension_id__/assets/fonts/Quicksand/Quicksand-VariableFont_wght.ttf') format('truetype');
+  font-weight: 300 700;
+}
+
 :root {
   --sc-color-red: #E02130;
   --sc-color-cream: #F9F4E0;
   --sc-color-coffee: #2C2C2C;
-  --sc-font-display: 'Lobster', cursive;
+  --sc-font-display: 'SauceControl Lobster', cursive;
+  --sc-font-body: 'SauceControl Quicksand', sans-serif;
 }
 
 #sauce-control-overlay {
@@ -19,14 +32,15 @@
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  font-family: 'Quicksand', sans-serif;
+  font-family: var(--sc-font-body);
   color: var(--sc-color-coffee);
 }
 
 .sauce-control-image {
+  display: block;
   max-width: 300px;
   height: auto;
-  margin-bottom: 2rem;
+  margin: 0 auto 2rem;
   box-shadow: 4px 4px 0px var(--sc-color-coffee);
   border: 3px solid var(--sc-color-coffee);
   border-radius: 10px;
@@ -43,4 +57,19 @@
 .sauce-control-message {
   font-size: 1.5rem;
   text-align: center;
+}
+
+#sauce-control-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  padding: 12px 20px;
+  background-color: var(--sc-color-cream);
+  border: 3px solid var(--sc-color-coffee);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0px var(--sc-color-coffee);
+  font-family: var(--sc-font-display);
+  font-size: 1.25rem;
+  color: var(--sc-color-red);
 }

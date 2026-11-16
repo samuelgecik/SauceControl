@@ -1,5 +1,19 @@
 /* SauceControl Options CSS */
 
+@font-face {
+    font-family: 'Lobster';
+    src: url('../../assets/fonts/Lobster/Lobster-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Quicksand';
+    src: url('../../assets/fonts/Quicksand/Quicksand-VariableFont_wght.ttf') format('truetype');
+    font-weight: 300 700;
+    font-style: normal;
+}
+
 :root {
     --color-ketchup: #E02130;
     --color-mustard: #F4B324;
@@ -9,7 +23,7 @@
     --color-coffee: #2C2C2C;
     --font-display: 'Lobster', cursive;
     --font-body: 'Quicksand', sans-serif;
-    --font-receipt: 'Courier Prime', monospace;
+    --font-receipt: 'Courier New', Courier, monospace;
 }
 
 body {
@@ -98,15 +112,24 @@ main {
 }
 
 /* Checkbox */
-.checkbox-container {
+.setting-item .checkbox-container {
     display: flex;
     align-items: center;
     cursor: pointer;
     font-size: 1.1rem;
 }
 
+/* Visually hidden rather than display: none, so the keyboard can still reach it */
 .checkbox-container input {
-    display: none;
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+}
+
+.checkbox-container input:focus-visible+.checkmark {
+    outline: 2px solid var(--color-ketchup);
+    outline-offset: 2px;
 }
 
 .checkmark {
@@ -201,4 +224,16 @@ main {
     padding: 5px;
     border: 2px solid var(--color-coffee);
     text-align: center;
+}
+
+.btn-remove {
+    margin-left: 10px;
+    background: none;
+    border: none;
+    padding: 5px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--color-ketchup);
+    text-decoration: underline;
+    cursor: pointer;
 }

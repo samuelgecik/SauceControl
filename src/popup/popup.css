@@ -17,7 +17,7 @@
 @font-face {
     font-family: 'Quicksand';
     src: url('../../assets/fonts/Quicksand/Quicksand-VariableFont_wght.ttf') format('truetype');
-    font-weight: normal;
+    font-weight: 300 700;
     font-style: normal;
 }
 
@@ -30,7 +30,7 @@
     --color-coffee: #2C2C2C;
     --font-display: 'Lobster', cursive;
     --font-body: 'Quicksand', sans-serif;
-    --font-receipt: 'Courier Prime', monospace;
+    --font-receipt: 'Courier New', Courier, monospace;
 }
 
 body {
@@ -136,10 +136,31 @@ main {
     overflow: hidden;
 }
 
+.liquid {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--color-ketchup);
+    opacity: 0.35;
+    transition: height 1s linear;
+}
+
+.liquid.on-break {
+    background-color: var(--color-teal);
+    opacity: 0.6;
+}
+
 .time-display {
     font-family: var(--font-display);
     font-size: 2.5rem;
     z-index: 2;
+}
+
+.timer-status {
+    margin: 0 0 10px;
+    font-weight: 700;
 }
 
 /* Buttons */

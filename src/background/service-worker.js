@@ -1,81 +1,124 @@
 import { STORAGE_KEYS, DEFAULTS } from '../utils/constants.js';
-import { getStorage, setStorage, updateSiteUsage } from '../utils/storage.js';
+import { getStorage, setStorage, updateBlockedSites } from '../utils/storage.js';
+import { getSiteDomain, findTrackedDomain, getBudgetDay } from '../utils/sites.js';
 
 console.log('SauceControl Service Worker Loaded');
+
+const DURATION_SETTINGS = {
+    focus: 'focus_duration',
+    short_break: 'short_break_duration',
+    long_break: 'long_break_duration',
+};
+
+const IDLE_THRESHOLD_SECONDS = 60;
+const TIMER_END_TOLERANCE_MS = 5000;
+
+const withTimerLock = (fn) => navigator.locks.request(STORAGE_KEYS.TIMER_STATE, fn);
 
 /**
  * Initialize default settings if active
  */
 chrome.runtime.onInstalled.addListener(async () => {
-    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
-    if (!settings.daily_reset_hour) {
-        await setStorage(STORAGE_KEYS.USER_SETTINGS, DEFAULTS.USER_SETTINGS);
-    }
+    await setStorage(STORAGE_KEYS.USER_SETTINGS, {
+        ...DEFAULTS.USER_SETTINGS,
+        ...await getStorage(STORAGE_KEYS.USER_SETTINGS),
+    });
+    await setStorage(STORAGE_KEYS.TIMER_STATE, {
+        ...DEFAULTS.TIMER_STATE,
+        ...await getStorage(STORAGE_KEYS.TIMER_STATE),
+    });
 
-    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
-    if (!timer.status) {
-        await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
-    }
+    await checkDailyReset();
+    await reconcileTimer();
+    await injectIntoOpenTabs();
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+    await checkDailyReset();
+    await reconcileTimer();
 });
 
 // Setup alarms
-chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
+ensureHeartbeat();
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'heartbeat') {
-        await checkMidnightReset();
-        await updateActiveTabUsage();
+        await checkDailyReset();
+        await trackUsage();
     } else if (alarm.name === 'timer_end') {
-        await handleTimerComplete();
+        await withTimerLock(handleTimerComplete);
     }
 });
 
-// Listen for Popup Messages
+// Listen for Popup and Content Script Messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'START_TIMER') {
-        startTimer(message.duration, message.type);
+        withTimerLock(() => startTimer(message.type));
     } else if (message.action === 'STOP_TIMER') {
-        stopTimer();
+        withTimerLock(stopTimer);
     } else if (message.action === 'PLAY_SOUND') {
         playAudio(message.file);
+    } else if (message.action === 'CHECK_BLOCK' && sender.tab) {
+        syncTabs([sender.tab]);
     }
 });
 
-// Immediate usage check on tab updates
-chrome.tabs.onActivated.addListener(() => {
-    updateActiveTabUsage();
+// Re-evaluate every open tab whenever the timer or the budgets change
+chrome.storage.onChanged.addListener((changes) => {
+    if (changes[STORAGE_KEYS.BLOCKED_SITES] || changes[STORAGE_KEYS.TIMER_STATE]) {
+        syncAllTabs();
+    }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' || changeInfo.url) {
-        updateActiveTabUsage();
+        syncTabs([tab]);
     }
 });
 
-async function startTimer(minutes, type) {
-    let duration = minutes;
-
-    // specific lookup if not provided
-    if (!duration) {
-        const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
-        if (type === 'focus') duration = settings.focus_duration || 25;
-        else if (type === 'short_break') duration = settings.short_break_duration || 5;
-        else if (type === 'long_break') duration = settings.long_break_duration || 15;
-        else duration = 25;
+/**
+ * Creating an alarm replaces any existing one, which would restart the countdown on every worker wake.
+ */
+async function ensureHeartbeat() {
+    if (!await chrome.alarms.get('heartbeat')) {
+        chrome.alarms.create('heartbeat', { periodInMinutes: 1 });
     }
+}
 
+/**
+ * Tabs opened before install have no content script.
+ */
+async function injectIntoOpenTabs() {
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+    await Promise.all(tabs.map(async (tab) => {
+        const target = { tabId: tab.id };
+        try {
+            await chrome.scripting.insertCSS({ target, files: ['src/content/overlay.css'] });
+            await chrome.scripting.executeScript({ target, files: ['src/content/content-script.js'] });
+        } catch (e) {
+            console.log(`Could not inject into tab ${tab.id}:`, e.message);
+        }
+    }));
+}
+
+async function getDuration(type) {
+    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
+    const key = DURATION_SETTINGS[type];
+    return settings[key] > 0 ? settings[key] : DEFAULTS.USER_SETTINGS[key];
+}
+
+async function startTimer(type) {
+    const duration = await getDuration(type);
     const durationMs = duration * 60 * 1000;
     const endTimestamp = Date.now() + durationMs;
 
-    // Get current state to preserve pomodoros_completed if not resetting
-    const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE) || DEFAULTS.TIMER_STATE;
-    const pomodorosCompleted = type === 'focus' ? currentState.pomodoros_completed : currentState.pomodoros_completed;
+    const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
 
     await setStorage(STORAGE_KEYS.TIMER_STATE, {
-        status: type || 'focus',
+        ...currentState,
+        status: type,
         end_timestamp: endTimestamp,
         duration_minutes: duration,
-        pomodoros_completed: pomodorosCompleted
     });
 
     chrome.alarms.create('timer_end', { when: endTimestamp });
@@ -90,14 +133,25 @@ async function startTimer(minutes, type) {
 }
 
 async function stopTimer() {
-    await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
-    chrome.alarms.clear('timer_end');
+    const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
+    await setStorage(STORAGE_KEYS.TIMER_STATE, {
+        ...currentState,
+        status: 'idle',
+        end_timestamp: null,
+    });
+    await chrome.alarms.clear('timer_end');
     console.log('Timer stopped');
 }
 
 async function handleTimerComplete() {
     const currentState = await getStorage(STORAGE_KEYS.TIMER_STATE);
-    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+
+    // The alarm and reconcileTimer can both report one timer; the second call sees the next timer's future end
+    if (currentState.status === 'idle' || currentState.end_timestamp - Date.now() > TIMER_END_TOLERANCE_MS) {
+        return;
+    }
+
+    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
 
     // Play sound
     console.log('Timer Complete! Ding!');
@@ -120,123 +174,193 @@ async function handleTimerComplete() {
             pomodoros_completed: newPomodoros
         });
 
-        await startTimer(null, nextType);
+        await startTimer(nextType);
 
-    } else if (currentState.status === 'short_break' || currentState.status === 'long_break') {
-        const autoStart = settings.auto_start_focus;
-
-        if (autoStart) {
-            console.log('Break complete. Auto-starting Focus.');
-            // Preserve pomodoro count
-            await setStorage(STORAGE_KEYS.TIMER_STATE, {
-                ...currentState,
-                status: 'idle' // Temporary reset to standard
-            });
-            await startTimer(null, 'focus');
-        } else {
-            // Break is over, return to idle but keep cycle count
-            console.log('Break complete. Waiting for user to start focus.');
-            await setStorage(STORAGE_KEYS.TIMER_STATE, {
-                ...DEFAULTS.TIMER_STATE,
-                pomodoros_completed: currentState.pomodoros_completed // Preserve progress
-            });
-        }
+    } else if (settings.auto_start_focus) {
+        console.log('Break complete. Auto-starting Focus.');
+        await startTimer('focus');
     } else {
-        // Should not happen, but reset just in case
-        await setStorage(STORAGE_KEYS.TIMER_STATE, DEFAULTS.TIMER_STATE);
+        // Break is over, return to idle but keep cycle count
+        console.log('Break complete. Waiting for user to start focus.');
+        await setStorage(STORAGE_KEYS.TIMER_STATE, {
+            ...currentState,
+            status: 'idle',
+            end_timestamp: null,
+        });
     }
 }
 
+/**
+ * Chrome may drop alarms when the browser restarts or the extension updates.
+ * Without this the timer would stay running forever, and tracked sites blocked with it.
+ */
+async function reconcileTimer() {
+    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
+    if (timer.status === 'idle' || await chrome.alarms.get('timer_end')) return;
+
+    if (timer.end_timestamp > Date.now()) {
+        chrome.alarms.create('timer_end', { when: timer.end_timestamp });
+    } else {
+        await withTimerLock(handleTimerComplete);
+    }
+}
+
+let creatingOffscreen = null;
+
 async function createOffscreen() {
     if (await chrome.offscreen.hasDocument()) return;
-    await chrome.offscreen.createDocument({
+    creatingOffscreen ??= chrome.offscreen.createDocument({
         url: 'src/offscreen/offscreen.html',
         reasons: ['AUDIO_PLAYBACK'],
         justification: 'Play timer notification sound',
+    }).finally(() => {
+        creatingOffscreen = null;
     });
+    await creatingOffscreen;
 }
 
 async function playAudio(file) {
     try {
-        const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS) || DEFAULTS.USER_SETTINGS;
+        const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
         if (settings.sound_enabled === false) return;
 
         await createOffscreen();
-        chrome.runtime.sendMessage({ action: 'PLAY_SOUND', file });
+        await chrome.runtime.sendMessage({ action: 'OFFSCREEN_PLAY_SOUND', file });
     } catch (e) {
         console.error('Failed to play audio:', e);
     }
 }
 
+function sendToTab(tabId, message) {
+    // Restricted pages and pages still loading have no listener; loading pages send CHECK_BLOCK themselves
+    chrome.tabs.sendMessage(tabId, message).catch(() => {});
+}
+
+function getBlockReason(domain, sites, timer) {
+    const trackedDomain = findTrackedDomain(domain, sites);
+    if (!trackedDomain) return null;
+    if (timer.status === 'focus') return 'FOCUS_MODE';
+
+    const site = sites[trackedDomain];
+    return site.minutes_used_today >= site.daily_limit_minutes ? 'DAILY_LIMIT' : null;
+}
+
 /**
- * Tracks usage for the currently active tab.
+ * Shows or removes the overlay on the given tabs to match the current state.
  */
-async function updateActiveTabUsage() {
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!activeTab || !activeTab.url) return;
+async function syncTabs(tabs) {
+    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
+    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
 
-    try {
-        const url = new URL(activeTab.url);
-        const domain = url.hostname.replace('www.', '');
+    for (const tab of tabs) {
+        const domain = getSiteDomain(tab.url);
+        if (!domain) continue;
 
-        const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES) || {};
-        const siteData = sites[domain];
+        const reason = getBlockReason(domain, sites, timer);
+        sendToTab(tab.id, reason ? { action: 'BLOCK_SITE', reason } : { action: 'UNBLOCK_SITE' });
+    }
+}
 
-        if (siteData) {
-            // Check Timer State for Focus Override
-            const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
-            if (timer.status === 'focus') {
-                console.log(`Blocking ${domain} (Focus Mode Active)`);
-                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE', reason: 'FOCUS_MODE' });
-                return; // Exit early, no tracking needed if blocked
-            }
+async function syncAllTabs() {
+    await syncTabs(await chrome.tabs.query({}));
+}
 
-            // Increment usage
-            const newUsage = (siteData.minutes_used_today || 0) + 1;
-            console.log(`Tracking ${domain}: ${newUsage}/${siteData.daily_limit_minutes}m`);
+/**
+ * Gets the tabs the user is actually using: the active tab of each open window while the user
+ * is at Chrome, otherwise only those playing sound, such as a video watched without touching the mouse.
+ */
+async function getTabsInUse() {
+    const idleState = await chrome.idle.queryState(IDLE_THRESHOLD_SECONDS);
+    if (idleState === 'locked') return [];
 
-            siteData.minutes_used_today = newUsage;
+    const windows = await chrome.windows.getAll({ populate: true });
+    const userAtChrome = idleState === 'active' && windows.some((win) => win.focused);
 
-            // We need to update the entire object structure or just this key
-            // Ideally getStorage returns the whole object, so we modify it and save back
-            sites[domain] = siteData;
-            await setStorage(STORAGE_KEYS.BLOCKED_SITES, sites);
+    return windows
+        .filter((win) => win.state !== 'minimized')
+        .map((win) => win.tabs.find((tab) => tab.active))
+        .filter((tab) => tab && (userAtChrome || tab.audible));
+}
 
-            // Check limits
-            const limit = siteData.daily_limit_minutes;
-            const remaining = limit - newUsage;
+/**
+ * Adds one heartbeat's worth of usage to each tracked site in use.
+ */
+async function trackUsage() {
+    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
+    if (timer.status === 'focus') return; // Tracked sites are blocked, so nothing to count
 
-            if (remaining <= 0) {
-                chrome.tabs.sendMessage(activeTab.id, { action: 'BLOCK_SITE', reason: 'DAILY_LIMIT' });
-                await playAudio('assets/sounds/metal_grill_door.ogg');
-            } else if (remaining === 1) {
-                chrome.tabs.sendMessage(activeTab.id, { action: 'WARNING', text: 'Last bite! 1 minute left.' });
-                await playAudio('assets/sounds/boiling_lid.ogg');
+    const tabs = await getTabsInUse();
+    const tabsToWarn = [];
+    let limitReached = false;
+
+    await updateBlockedSites((sites) => {
+        const tabsBySite = new Map();
+        for (const tab of tabs) {
+            const trackedDomain = findTrackedDomain(getSiteDomain(tab.url), sites);
+            if (trackedDomain) {
+                tabsBySite.set(trackedDomain, [...(tabsBySite.get(trackedDomain) || []), tab]);
             }
         }
-    } catch (e) {
-        console.error('Error tracking tab:', e);
+
+        let changed = false;
+        for (const [domain, siteTabs] of tabsBySite) {
+            const site = sites[domain];
+            if (site.minutes_used_today >= site.daily_limit_minutes) continue;
+
+            site.minutes_used_today += 1;
+            changed = true;
+            console.log(`Tracking ${domain}: ${site.minutes_used_today}/${site.daily_limit_minutes}m`);
+
+            const remaining = site.daily_limit_minutes - site.minutes_used_today;
+            if (remaining <= 0) {
+                limitReached = true;
+            } else if (remaining === 1) {
+                tabsToWarn.push(...siteTabs);
+            }
+        }
+        return changed;
+    });
+
+    tabsToWarn.forEach((tab) => {
+        sendToTab(tab.id, { action: 'WARNING', text: 'Last bite! 1 minute left.' });
+    });
+
+    // The storage write above already triggered the block itself
+    if (limitReached) {
+        await playAudio('assets/sounds/metal_grill_door.ogg');
+    } else if (tabsToWarn.length > 0) {
+        await playAudio('assets/sounds/boiling_lid.ogg');
     }
 }
 
 /**
- * Checks if we've passed midnight and resets budgets if so.
+ * Checks if we've passed the reset hour and resets budgets and the cycle count if so.
  */
-async function checkMidnightReset() {
-    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES) || {};
-    const todayStr = new Date().toDateString();
-    let changed = false;
+async function checkDailyReset() {
+    const settings = await getStorage(STORAGE_KEYS.USER_SETTINGS);
+    const budgetDay = getBudgetDay(settings.daily_reset_hour);
 
-    for (const [domain, siteData] of Object.entries(sites)) {
-        if (siteData.last_reset_date !== todayStr) {
-            console.log(`Resetting budget for ${domain}`);
-            sites[domain].minutes_used_today = 0;
-            sites[domain].last_reset_date = todayStr;
-            changed = true;
+    await updateBlockedSites((sites) => {
+        let changed = false;
+        for (const [domain, siteData] of Object.entries(sites)) {
+            if (siteData.last_reset_date !== budgetDay) {
+                console.log(`Resetting budget for ${domain}`);
+                siteData.minutes_used_today = 0;
+                siteData.last_reset_date = budgetDay;
+                changed = true;
+            }
         }
-    }
+        return changed;
+    });
 
-    if (changed) {
-        await setStorage(STORAGE_KEYS.BLOCKED_SITES, sites);
-    }
+    await withTimerLock(async () => {
+        const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
+        if (timer.pomodoro_day !== budgetDay) {
+            await setStorage(STORAGE_KEYS.TIMER_STATE, {
+                ...timer,
+                pomodoros_completed: 0,
+                pomodoro_day: budgetDay,
+            });
+        }
+    });
 }
