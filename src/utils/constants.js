@@ -6,7 +6,10 @@ export const STORAGE_KEYS = {
     USER_SETTINGS: 'user_settings',
     BLOCKED_SITES: 'blocked_sites',
     TIMER_STATE: 'timer_state',
+    CLOSED_TABS: 'closed_tabs',
 };
+
+export const BLOCKED_PAGE = 'src/blocked/blocked.html';
 
 export const DEFAULTS = {
     USER_SETTINGS: {
@@ -24,4 +27,5 @@ export const DEFAULTS = {
         pomodoros_completed: 0,
         pomodoro_day: null,
     },
+    CLOSED_TABS: [],
 };

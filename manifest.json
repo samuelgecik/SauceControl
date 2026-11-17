@@ -9,7 +9,8 @@
         "scripting",
         "alarms",
         "offscreen",
-        "idle"
+        "idle",
+        "declarativeNetRequestWithHostAccess"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -27,7 +28,7 @@
                 "src/content/content-script.js"
             ],
             "css": [
-                "src/content/overlay.css"
+                "src/content/toast.css"
             ],
             "run_at": "document_idle"
         }
@@ -52,9 +53,8 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "assets/images/closed.jpg",
-                "assets/fonts/Lobster/*",
-                "assets/fonts/Quicksand/*"
+                "src/blocked/blocked.html",
+                "assets/fonts/Lobster/*"
             ],
             "matches": [
                 "<all_urls>"

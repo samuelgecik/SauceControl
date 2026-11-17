@@ -1,6 +1,6 @@
-import { STORAGE_KEYS, DEFAULTS } from '../utils/constants.js';
+import { STORAGE_KEYS, DEFAULTS, BLOCKED_PAGE } from '../utils/constants.js';
 import { getStorage, setStorage, updateBlockedSites } from '../utils/storage.js';
-import { getSiteDomain, findTrackedDomain, getBudgetDay } from '../utils/sites.js';
+import { getSiteDomain, findTrackedDomain, getBudgetDay, getBlockReason } from '../utils/sites.js';
 
 console.log('SauceControl Service Worker Loaded');
 
@@ -18,7 +18,7 @@ const withTimerLock = (fn) => navigator.locks.request(STORAGE_KEYS.TIMER_STATE, 
 /**
  * Initialize default settings if active
  */
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
     await setStorage(STORAGE_KEYS.USER_SETTINGS, {
         ...DEFAULTS.USER_SETTINGS,
         ...await getStorage(STORAGE_KEYS.USER_SETTINGS),
@@ -30,12 +30,18 @@ chrome.runtime.onInstalled.addListener(async () => {
 
     await checkDailyReset();
     await reconcileTimer();
+    if (details.reason === 'update') {
+        await restoreClosedTabs();
+    }
     await injectIntoOpenTabs();
+    await syncBlocking();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
     await checkDailyReset();
     await reconcileTimer();
+    await syncBlocking();
+    await saveClosedTabs(); // Tab IDs change across browser restarts
 });
 
 // Setup alarms
@@ -50,7 +56,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     }
 });
 
-// Listen for Popup and Content Script Messages
+// Listen for Popup Messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'START_TIMER') {
         withTimerLock(() => startTimer(message.type));
@@ -58,23 +64,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         withTimerLock(stopTimer);
     } else if (message.action === 'PLAY_SOUND') {
         playAudio(message.file);
-    } else if (message.action === 'CHECK_BLOCK' && sender.tab) {
-        syncTabs([sender.tab]);
     }
 });
 
-// Re-evaluate every open tab whenever the timer or the budgets change
+// Re-evaluate the redirect rules and open tabs whenever the timer or the budgets change
 chrome.storage.onChanged.addListener((changes) => {
     if (changes[STORAGE_KEYS.BLOCKED_SITES] || changes[STORAGE_KEYS.TIMER_STATE]) {
-        syncAllTabs();
+        syncBlocking();
     }
 });
 
+// Catches pages the redirect rules can't, such as one restored from the back-forward cache
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' || changeInfo.url) {
-        syncTabs([tab]);
+        redirectBlockedTabs([tab]);
+        saveClosedTabs();
     }
 });
+
+chrome.tabs.onRemoved.addListener(() => saveClosedTabs());
+chrome.tabs.onMoved.addListener(() => saveClosedTabs());
+chrome.tabs.onAttached.addListener(() => saveClosedTabs());
 
 /**
  * Creating an alarm replaces any existing one, which would restart the countdown on every worker wake.
@@ -93,7 +103,7 @@ async function injectIntoOpenTabs() {
     await Promise.all(tabs.map(async (tab) => {
         const target = { tabId: tab.id };
         try {
-            await chrome.scripting.insertCSS({ target, files: ['src/content/overlay.css'] });
+            await chrome.scripting.insertCSS({ target, files: ['src/content/toast.css'] });
             await chrome.scripting.executeScript({ target, files: ['src/content/content-script.js'] });
         } catch (e) {
             console.log(`Could not inject into tab ${tab.id}:`, e.message);
@@ -232,37 +242,125 @@ async function playAudio(file) {
 }
 
 function sendToTab(tabId, message) {
-    // Restricted pages and pages still loading have no listener; loading pages send CHECK_BLOCK themselves
+    // Restricted pages and pages still loading have no listener
     chrome.tabs.sendMessage(tabId, message).catch(() => {});
 }
 
-function getBlockReason(domain, sites, timer) {
-    const trackedDomain = findTrackedDomain(domain, sites);
-    if (!trackedDomain) return null;
-    if (timer.status === 'focus') return 'FOCUS_MODE';
+/**
+ * One rule per tracked site: blocked sites redirect to the Closed page, the rest are allowed.
+ * The deepest domain takes priority, as in findTrackedDomain, so a.example.com keeps its own budget.
+ */
+async function updateRedirectRules(sites, timer) {
+    const blockedPage = chrome.runtime.getURL(BLOCKED_PAGE);
+    const addRules = Object.keys(sites).filter(Boolean).map((domain, index) => ({
+        id: index + 1,
+        priority: domain.split('.').length,
+        action: getBlockReason(domain, sites, timer)
+            ? { type: 'redirect', redirect: { regexSubstitution: `${blockedPage}#\\1` } }
+            : { type: 'allow' },
+        condition: { regexFilter: '^(.+)$', requestDomains: [domain], resourceTypes: ['main_frame'] },
+    }));
 
-    const site = sites[trackedDomain];
-    return site.minutes_used_today >= site.daily_limit_minutes ? 'DAILY_LIMIT' : null;
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: existingRules.map((rule) => rule.id),
+        addRules,
+    });
 }
 
-/**
- * Shows or removes the overlay on the given tabs to match the current state.
- */
-async function syncTabs(tabs) {
-    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
-    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
-
-    for (const tab of tabs) {
-        const domain = getSiteDomain(tab.url);
-        if (!domain) continue;
-
-        const reason = getBlockReason(domain, sites, timer);
-        sendToTab(tab.id, reason ? { action: 'BLOCK_SITE', reason } : { action: 'UNBLOCK_SITE' });
+async function redirectTab(tab) {
+    const url = `${chrome.runtime.getURL(BLOCKED_PAGE)}#${tab.url}`;
+    try {
+        await chrome.tabs.sendMessage(tab.id, { action: 'REDIRECT', url });
+    } catch (e) {
+        // No content script to replace the history entry, so navigate the tab, unless it has already left the site
+        const current = await chrome.tabs.get(tab.id).catch(() => null);
+        if (current && getSiteDomain(current.pendingUrl || current.url) === getSiteDomain(tab.url)) {
+            await chrome.tabs.update(tab.id, { url }).catch(() => {});
+        }
     }
 }
 
-async function syncAllTabs() {
-    await syncTabs(await chrome.tabs.query({}));
+/**
+ * Moves the given tabs to the Closed page if their site is blocked.
+ */
+async function redirectBlockedTabs(tabs) {
+    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
+    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
+
+    await Promise.all(tabs
+        .filter((tab) => getBlockReason(getSiteDomain(tab.url), sites, timer))
+        .map(redirectTab));
+}
+
+async function applyBlocking() {
+    const sites = await getStorage(STORAGE_KEYS.BLOCKED_SITES);
+    const timer = await getStorage(STORAGE_KEYS.TIMER_STATE);
+
+    try {
+        await updateRedirectRules(sites, timer);
+    } catch (e) {
+        console.error('Failed to update redirect rules:', e);
+    }
+
+    // The rules only catch new page loads
+    await redirectBlockedTabs(await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }));
+
+    // Closed pages check the new rules and reopen their site if it's no longer blocked
+    chrome.runtime.sendMessage({ action: 'BLOCKING_UPDATED' }).catch(() => {});
+}
+
+let closedTabsSave = Promise.resolve();
+
+/**
+ * Chrome closes tabs showing extension pages during an update without telling the old worker,
+ * so keep a note of the tabs on the Closed page for restoreClosedTabs.
+ */
+function saveClosedTabs() {
+    closedTabsSave = closedTabsSave.then(async () => {
+        const blockedPage = chrome.runtime.getURL(BLOCKED_PAGE);
+        const tabs = await chrome.tabs.query({});
+        await setStorage(STORAGE_KEYS.CLOSED_TABS, tabs
+            .filter((tab) => tab.url?.startsWith(blockedPage))
+            .map(({ url, windowId, index }) => ({ url, windowId, index })));
+    }).catch((e) => console.error('Failed to save Closed page tabs:', e));
+    return closedTabsSave;
+}
+
+/**
+ * Reopens the Closed page tabs that the update closed. Each page returns to its site if that's no longer blocked.
+ */
+async function restoreClosedTabs() {
+    const savedTabs = await getStorage(STORAGE_KEYS.CLOSED_TABS);
+    const tabs = await chrome.tabs.query({});
+    const windowIds = new Set(tabs.map((tab) => tab.windowId));
+    const openUrls = tabs.map((tab) => tab.url);
+
+    for (const saved of [...savedTabs].sort((a, b) => a.index - b.index)) {
+        // Skip tabs that are still open, such as ones the browser restored itself after a restart
+        const openIndex = openUrls.indexOf(saved.url);
+        if (openIndex !== -1) {
+            openUrls.splice(openIndex, 1);
+            continue;
+        }
+
+        await chrome.tabs.create({
+            url: saved.url,
+            index: saved.index,
+            active: false,
+            ...(windowIds.has(saved.windowId) && { windowId: saved.windowId }),
+        }).catch((e) => console.error('Failed to reopen a Closed page tab:', e));
+    }
+}
+
+let blockingSync = Promise.resolve();
+
+/**
+ * Runs one sync at a time, so the rules always end up matching the latest state.
+ */
+function syncBlocking() {
+    blockingSync = blockingSync.then(applyBlocking).catch((e) => console.error('Failed to sync blocking:', e));
+    return blockingSync;
 }
 
 /**

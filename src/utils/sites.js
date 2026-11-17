@@ -31,6 +31,22 @@ export function findTrackedDomain(domain, sites) {
 }
 
 /**
+ * Get why a domain is blocked right now
+ * @param {string|null} domain
+ * @param {object} sites
+ * @param {object} timer
+ * @returns {'FOCUS_MODE'|'DAILY_LIMIT'|null}
+ */
+export function getBlockReason(domain, sites, timer) {
+    const trackedDomain = findTrackedDomain(domain, sites);
+    if (!trackedDomain) return null;
+    if (timer.status === 'focus') return 'FOCUS_MODE';
+
+    const site = sites[trackedDomain];
+    return site.minutes_used_today >= site.daily_limit_minutes ? 'DAILY_LIMIT' : null;
+}
+
+/**
  * Get the budget day a moment belongs to. Hours before the reset hour count towards the previous day.
  * @param {number} resetHour
  * @param {Date} now

@@ -1,0 +1,67 @@
+/* SauceControl Closed Page CSS */
+
+@font-face {
+    font-family: 'Lobster';
+    src: url('../../assets/fonts/Lobster/Lobster-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Quicksand';
+    src: url('../../assets/fonts/Quicksand/Quicksand-VariableFont_wght.ttf') format('truetype');
+    font-weight: 300 700;
+    font-style: normal;
+}
+
+:root {
+    --color-ketchup: #E02130;
+    --color-cream: #F9F4E0;
+    --color-coffee: #2C2C2C;
+    --font-display: 'Lobster', cursive;
+    --font-body: 'Quicksand', sans-serif;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--color-cream);
+    font-family: var(--font-body);
+    color: var(--color-coffee);
+}
+
+.closed-sign {
+    padding: 20px;
+    text-align: center;
+}
+
+.closed-image {
+    display: block;
+    max-width: min(300px, 100%);
+    height: auto;
+    margin: 0 auto 2rem;
+    box-shadow: 4px 4px 0px var(--color-coffee);
+    border: 3px solid var(--color-coffee);
+    border-radius: 10px;
+}
+
+.title {
+    font-family: var(--font-display);
+    font-size: 4rem;
+    font-weight: normal;
+    color: var(--color-ketchup);
+    margin: 0 0 20px;
+}
+
+.message {
+    font-size: 1.5rem;
+    margin: 0 0 10px;
+}
+
+.site {
+    font-weight: 700;
+    margin: 0;
+}

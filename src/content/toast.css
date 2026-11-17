@@ -1,0 +1,22 @@
+/* Prefixed so this face can't replace a family of the same name on the host page */
+@font-face {
+  font-family: 'SauceControl Lobster';
+  src: url('chrome-extension://__MSG_@@extension_id__/assets/fonts/Lobster/Lobster-Regular.ttf') format('truetype');
+}
+
+#sauce-control-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  /* Max Z-Index */
+  padding: 12px 20px;
+  background-color: #F9F4E0;
+  /* Guest Check Cream */
+  border: 3px solid #2C2C2C;
+  border-radius: 10px;
+  box-shadow: 4px 4px 0px #2C2C2C;
+  font-family: 'SauceControl Lobster', cursive;
+  font-size: 1.25rem;
+  color: #E02130;
+}
